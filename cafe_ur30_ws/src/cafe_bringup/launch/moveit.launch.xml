@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!--
+  MANIPULATION: MoveIt 2 move_group + the pick_place_executor.
+  All static MoveIt settings live in cafe_moveit_config/config/moveit_params.yaml.
+-->
+<launch>
+  <arg name="gz" default="false" description="URDF variant: true = gz_ros2_control, false = ign_ros2_control"/>
+  <let name="xacro_file"    value="$(find-pkg-share cafe_sim)/urdf/cafe_ur30.urdf.xacro"/>
+  <let name="srdf_file"     value="$(find-pkg-share cafe_moveit_config)/config/cafe_ur30.srdf"/>
+  <let name="moveit_params" value="$(find-pkg-share cafe_moveit_config)/config/moveit_params.yaml"/>
+  <let name="app_params"    value="$(find-pkg-share cafe_bringup)/config/cafe_params.yaml"/>
+
+  <!-- move_group: planning, collision checking, trajectory execution -->
+  <node pkg="moveit_ros_move_group" exec="move_group" output="screen">
+    <param name="robot_description" value="$(command 'xacro $(var xacro_file) use_gz:=$(var gz)')" type="str"/>
+    <param name="robot_description_semantic" value="$(command 'cat $(var srdf_file)')" type="str"/>
+    <param from="$(var moveit_params)"/>
+    <param name="use_sim_time" value="true"/>
+  </node>
+
+  <!-- pick_place_executor: our action server (pick, verify grasp, place, recover) -->
+  <node pkg="pick_place_executor" exec="pick_place_executor" name="pick_place_executor" output="screen">
+    <param name="robot_description" value="$(command 'xacro $(var xacro_file) use_gz:=$(var gz)')" type="str"/>
+    <param name="robot_description_semantic" value="$(command 'cat $(var srdf_file)')" type="str"/>
+    <param from="$(var moveit_params)"/>
+    <param from="$(var app_params)"/>
+    <param name="use_sim_time" value="true"/>
+  </node>
+</launch>

@@ -1,0 +1,82 @@
+# ---------------------------------------------------------------------------------------------
+#  Single parameter file for the whole application (all frames are the Gazebo "world" frame).
+#  NOTE: write floats with a decimal point (0.0, not 0) - ROS 2 parameters are strictly typed.
+# ---------------------------------------------------------------------------------------------
+tray_detector:
+  ros__parameters:
+    camera_frame: camera_optical_frame
+    target_frame: world
+    rgb_topic: /camera/image
+    depth_topic: /camera/depth_image
+    info_topic: /camera/camera_info
+    colors: [red, blue, green]
+    # flat HSV ranges [Hlo,Slo,Vlo,Hhi,Shi,Vhi, ...]  (OpenCV: H 0-179). Red wraps around 0/180.
+    hsv_red:   [0, 100, 60, 10, 255, 255, 170, 100, 60, 180, 255, 255]
+    hsv_green: [35, 60, 40, 85, 255, 255]
+    hsv_blue:  [100, 100, 40, 135, 255, 255]
+    min_area_px: 150.0
+    max_area_px: 20000.0
+    table_z: 0.75
+    min_top_height: 0.015     # tray top must be 1.5 .. 9 cm above the table, else rejected
+    max_top_height: 0.09
+    size_length_range: [0.12, 0.26]
+    size_width_range: [0.06, 0.16]
+    roi_x: [0.40, 1.10]       # pick area in world coordinates (drop zones are outside)
+    roi_y: [-0.50, 0.50]
+    track_gate: 0.08          # max movement between frames to keep the same id [m]
+    track_window: 5
+    track_min_hits: 3
+    stable_std: 0.004         # pose std-dev over the window below which a tray is "stable" [m]
+    track_timeout: 30.0
+    publish_debug: true
+
+pick_place_executor:
+  ros__parameters:
+    planning_group: ur_manipulator
+    ee_link: gripper_tcp
+    table_z: 0.75
+    grasp_height: 0.03        # tcp height above table when grasping (fingertips 1 cm above table)
+    approach_height: 0.12     # pre-grasp / retreat height above the grasp pose
+    clearance_height: 0.25    # carry height above the table
+    place_margin: 0.01
+    # --- SPEED: fraction of the joint limits in cafe_moveit_config/config/moveit_params.yaml ---
+    velocity_scaling: 0.8      # free (empty-gripper) moves
+    acceleration_scaling: 0.8
+    cartesian_velocity_scaling: 0.35
+    cartesian_acceleration_scaling: 0.35
+    carry_velocity_scaling: 0.6      # while holding a tray: slow and gentle
+    carry_acceleration_scaling: 0.4
+    planning_time: 5.0
+    planning_attempts: 5
+    cartesian_step: 0.01
+    min_cartesian_fraction: 0.95
+    gripper_open_q: 0.075     # per-finger travel when open   (opening = 2q = 15 cm)
+    gripper_close_target_q: 0.01
+    gripper_close_time: 0.8
+    grasp_settle_time: 0.4
+    min_finger_q: 0.015       # fingers closer than this => nothing was grasped
+    grasp_width_tolerance: 0.025
+    default_tray_width: 0.10
+    observe_joints: [1.5708, -1.5708, 1.5708, -1.5708, -1.5708, 0.0]
+    simulate_grasp_failure: false   # ros2 param set /pick_place_executor simulate_grasp_failure true
+
+task_manager:
+  ros__parameters:
+    frame: world
+    autostart: true
+    max_retries: 2            # retries AFTER the first attempt -> 3 attempts per tray, then skip
+    rescan_interval: 5.0      # idle: look again after this many seconds
+    retry_delay: 2.0
+    post_pick_delay: 1.5
+    max_detection_age: 3.0    # sim-seconds; detections older than this are never used (stale coordinates)
+    require_stable: true      # only pick trays that have stopped moving
+    move_tolerance: 0.03      # a skipped tray that moves more than this gets a fresh chance
+    blacklist_timeout: 0.0    # 0 = keep skipping until the tray is moved
+    priority_enabled: true    # false = nearest-first, ignoring colour
+    priority_order: [red, blue, green]     # high -> low
+    max_slots: 3              # trays of the same colour are stacked side by side in the drop zone
+    slot_offset: [0.0, 0.14]
+    drop_zones:               # [x, y, yaw]  of the tray centre in world frame
+      red:   [0.05, 0.72, 0.0]
+      blue:  [0.33, 0.72, 0.0]
+      green: [0.61, 0.72, 0.0]

@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<!--
+  SIMULATION: Gazebo world + UR30/gripper + controllers + camera bridge + camera TF.
+  Usage:  ros2 launch cafe_sim sim.launch.xml [gui:=false]
+-->
+<launch>
+  <arg name="gui" default="true" description="Show the Gazebo window (false = headless, faster)"/>
+
+  <!-- 1. Environment: let Gazebo find the UR meshes and the ros2_control plugin -->
+  <set_env name="IGN_GAZEBO_RESOURCE_PATH"
+           value="$(find-pkg-prefix ur_description)/share:$(find-pkg-prefix cafe_sim)/share:$(env IGN_GAZEBO_RESOURCE_PATH /opt/ros/humble/share)"/>
+  <set_env name="IGN_GAZEBO_SYSTEM_PLUGIN_PATH"
+           value="/opt/ros/humble/lib:$(env LD_LIBRARY_PATH /opt/ros/humble/lib)"/>
+
+  <!-- 2. Gazebo (Ignition Fortress) with the café world -->
+  <include file="$(find-pkg-share ros_ign_gazebo)/launch/ign_gazebo.launch.py" if="$(var gui)">
+    <arg name="ign_args" value="-r -v 2 $(find-pkg-share cafe_sim)/worlds/cafe.sdf"/>
+    <arg name="on_exit_shutdown" value="true"/>
+  </include>
+  <include file="$(find-pkg-share ros_ign_gazebo)/launch/ign_gazebo.launch.py" unless="$(var gui)">
+    <arg name="ign_args" value="-r -s -v 2 $(find-pkg-share cafe_sim)/worlds/cafe.sdf"/>
+    <arg name="on_exit_shutdown" value="true"/>
+  </include>
+
+  <!-- 3. Robot description (xacro -> URDF) published for TF / RViz / spawning -->
+  <node pkg="robot_state_publisher" exec="robot_state_publisher" output="screen">
+    <param name="robot_description"
+           value="$(command 'xacro $(find-pkg-share cafe_sim)/urdf/cafe_ur30.urdf.xacro use_gz:=false')"
+           type="str"/>
+    <param name="use_sim_time" value="true"/>
+  </node>
+
+  <!-- 4. Spawn the robot into Gazebo (this also starts ign_ros2_control / controller_manager) -->
+  <node pkg="ros_ign_gazebo" exec="create" output="screen"
+        args="-topic robot_description -name ur30 -allow_renaming true"/>
+
+  <!-- 5. ROS <-> Gazebo bridge: clock + RGB-D camera -->
+  <node pkg="ros_ign_bridge" exec="parameter_bridge" output="screen"
+        args="/clock@rosgraph_msgs/msg/Clock[ignition.msgs.Clock
+              /camera/image@sensor_msgs/msg/Image[ignition.msgs.Image
+              /camera/depth_image@sensor_msgs/msg/Image[ignition.msgs.Image
+              /camera/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo"/>
+
+  <!-- 6. Camera extrinsics: world -> camera_optical_frame.
+          Same pose as <model overhead_camera> in worlds/cafe.sdf (0.75, 0, 1.75, looking down).
+          Quaternion = optical-frame convention (z forward/down, x = image right, y = image down). -->
+  <node pkg="tf2_ros" exec="static_transform_publisher" output="screen"
+        args="--x 0.75 --y 0.0 --z 1.75 --qx 0.7071068 --qy -0.7071068 --qz 0.0 --qw 0.0 --frame-id world --child-frame-id camera_optical_frame">
+    <param name="use_sim_time" value="true"/>
+  </node>
+
+  <!-- 7. Controllers. The spawners wait (up to 5 min) for the controller_manager to appear. -->
+  <node pkg="controller_manager" exec="spawner" output="screen"
+        args="joint_state_broadcaster --controller-manager /controller_manager --controller-manager-timeout 300"/>
+  <node pkg="controller_manager" exec="spawner" output="screen"
+        args="joint_trajectory_controller --controller-manager /controller_manager --controller-manager-timeout 300"/>
+  <node pkg="controller_manager" exec="spawner" output="screen"
+        args="gripper_controller --controller-manager /controller_manager --controller-manager-timeout 300"/>
+</launch>

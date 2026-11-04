@@ -1,0 +1,22 @@
+# ---- Goal -------------------------------------------------------------
+# Tray to pick (pose in the planning frame) and where to put it.
+# place_pose: only x, y and yaw (about Z) are used; heights are handled by the executor.
+cafe_interfaces/TrayDetection tray
+geometry_msgs/PoseStamped place_pose
+---
+# ---- Result -----------------------------------------------------------
+uint8 NONE=0
+uint8 INVALID_INPUT=1
+uint8 PLANNING_FAILED=2
+uint8 EXECUTION_FAILED=3
+uint8 GRASP_FAILED=4
+uint8 TRAY_DROPPED=5
+uint8 GRIPPER_ERROR=6
+uint8 CANCELED=7
+
+bool success
+uint8 error_code
+string message
+---
+# ---- Feedback ---------------------------------------------------------
+string stage

@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+<!--
+  Simple 2-finger parallel gripper.
+  Frame convention (gripper_base): +Z points out of the flange, the fingers slide along +/-Y.
+    finger_*_joint position q = distance each finger has moved away from the centre line
+    -> opening width = 2*q  (q = 0 closed, q = 0.08 fully open = 16 cm)
+  gripper_tcp sits 18 cm from the flange, i.e. 2 cm above the fingertips.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <material name="gripper_dark"><color rgba="0.15 0.15 0.17 1"/></material>
+  <material name="gripper_pad"><color rgba="0.9 0.5 0.1 1"/></material>
+
+  <xacro:macro name="box_inertial" params="m x y z cx:=0 cy:=0 cz:=0">
+    <inertial>
+      <origin xyz="${cx} ${cy} ${cz}" rpy="0 0 0"/>
+      <mass value="${m}"/>
+      <inertia ixx="${m/12.0*(y*y+z*z)}" ixy="0" ixz="0"
+               iyy="${m/12.0*(x*x+z*z)}" iyz="0" izz="${m/12.0*(x*x+y*y)}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="parallel_gripper" params="parent *origin">
+    <joint name="gripper_mount_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="gripper_base"/>
+      <xacro:insert_block name="origin"/>
+    </joint>
+
+    <link name="gripper_base">
+      <visual>
+        <origin xyz="0 0 0.06" rpy="0 0 0"/>
+        <geometry><box size="0.08 0.22 0.12"/></geometry>
+        <material name="gripper_dark"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0.06" rpy="0 0 0"/>
+        <geometry><box size="0.08 0.22 0.12"/></geometry>
+      </collision>
+      <xacro:box_inertial m="1.0" x="0.08" y="0.22" z="0.12" cz="0.06"/>
+    </link>
+
+    <!-- left finger: moves towards +Y when opening -->
+    <joint name="finger_left_joint" type="prismatic">
+      <parent link="gripper_base"/>
+      <child link="finger_left"/>
+      <origin xyz="0 0 0.12" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <limit lower="-0.005" upper="0.085" effort="200" velocity="0.2"/>
+      <dynamics damping="2.0" friction="0.0"/>
+    </joint>
+    <link name="finger_left">
+      <visual>
+        <origin xyz="0 0.0075 0.04" rpy="0 0 0"/>
+        <geometry><box size="0.10 0.015 0.08"/></geometry>
+        <material name="gripper_pad"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0.0075 0.04" rpy="0 0 0"/>
+        <geometry><box size="0.10 0.015 0.08"/></geometry>
+      </collision>
+      <xacro:box_inertial m="0.1" x="0.10" y="0.015" z="0.08" cy="0.0075" cz="0.04"/>
+    </link>
+
+    <!-- right finger: moves towards -Y when opening -->
+    <joint name="finger_right_joint" type="prismatic">
+      <parent link="gripper_base"/>
+      <child link="finger_right"/>
+      <origin xyz="0 0 0.12" rpy="0 0 0"/>
+      <axis xyz="0 -1 0"/>
+      <limit lower="-0.005" upper="0.085" effort="200" velocity="0.2"/>
+      <dynamics damping="2.0" friction="0.0"/>
+    </joint>
+    <link name="finger_right">
+      <visual>
+        <origin xyz="0 -0.0075 0.04" rpy="0 0 0"/>
+        <geometry><box size="0.10 0.015 0.08"/></geometry>
+        <material name="gripper_pad"/>
+      </visual>
+      <collision>
+        <origin xyz="0 -0.0075 0.04" rpy="0 0 0"/>
+        <geometry><box size="0.10 0.015 0.08"/></geometry>
+      </collision>
+      <xacro:box_inertial m="0.1" x="0.10" y="0.015" z="0.08" cy="-0.0075" cz="0.04"/>
+    </link>
+
+    <!-- tool centre point used by MoveIt as the end-effector link -->
+    <joint name="gripper_tcp_joint" type="fixed">
+      <parent link="gripper_base"/>
+      <child link="gripper_tcp"/>
+      <origin xyz="0 0 0.18" rpy="0 0 0"/>
+    </joint>
+    <link name="gripper_tcp"/>
+
+    <!-- high friction pads so the tray does not slip -->
+    <gazebo reference="finger_left"><mu1>2.0</mu1><mu2>2.0</mu2></gazebo>
+    <gazebo reference="finger_right"><mu1>2.0</mu1><mu2>2.0</mu2></gazebo>
+  </xacro:macro>
+
+  <xacro:macro name="parallel_gripper_ros2_joints" params="initial_q:=0.075">
+    <joint name="finger_left_joint">
+      <command_interface name="position">
+        <param name="min">0.0</param><param name="max">0.08</param>
+      </command_interface>
+      <state_interface name="position"><param name="initial_value">${initial_q}</param></state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="finger_right_joint">
+      <command_interface name="position">
+        <param name="min">0.0</param><param name="max">0.08</param>
+      </command_interface>
+      <state_interface name="position"><param name="initial_value">${initial_q}</param></state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+  </xacro:macro>
+</robot>

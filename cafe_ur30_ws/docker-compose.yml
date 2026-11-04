@@ -1,0 +1,46 @@
+# Usage (Linux host with X11):
+#   xhost +local:docker                       # allow the container to open windows
+#   docker compose --profile intel  up --build   # Intel / AMD GPU, or software rendering
+#   docker compose --profile nvidia up --build   # NVIDIA GPU (needs nvidia-container-toolkit)
+#   docker compose --profile harmonic up --build # new Gazebo (gz), software/Intel/AMD rendering
+#   docker compose run --rm intel bash           # shell inside the container
+x-common: &common
+  image: cafe-ur30:${CAFE_TAG:-fortress}
+  network_mode: host          # DDS discovery + Gazebo transport just work
+  ipc: host
+  privileged: false
+  environment:
+    - DISPLAY=${DISPLAY}
+    - QT_X11_NO_MITSHM=1
+    - XDG_RUNTIME_DIR=/tmp
+    # LIBGL_ALWAYS_SOFTWARE=1 forces CPU rendering (slow!). Leave unset when a GPU is available.
+    - LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE:-0}
+  volumes:
+    - /tmp/.X11-unix:/tmp/.X11-unix:rw
+  stdin_open: true
+  tty: true
+
+services:
+  intel:
+    <<: *common
+    profiles: ["intel"]
+    build: {context: ., args: {GZ: fortress}}
+    devices: ["/dev/dri:/dev/dri"]
+
+  nvidia:
+    <<: *common
+    profiles: ["nvidia"]
+    build: {context: ., args: {GZ: fortress}}
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - {driver: nvidia, count: all, capabilities: [gpu]}
+
+  harmonic:
+    <<: *common
+    image: cafe-ur30:harmonic
+    profiles: ["harmonic"]
+    build: {context: ., args: {GZ: harmonic}}
+    devices: ["/dev/dri:/dev/dri"]

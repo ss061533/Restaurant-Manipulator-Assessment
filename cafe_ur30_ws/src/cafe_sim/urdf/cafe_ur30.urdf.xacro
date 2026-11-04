@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<!--
+  UR30 + parallel gripper for Gazebo (Ignition Fortress) with ign_ros2_control.
+  Frames:  world (= Gazebo world, z=0 is the floor)
+             └─ base_link  (robot stands on the table top, z = base_z, yawed by pi so that the
+                            arm's "forward" direction at shoulder_pan = 0 is +X of world)
+  Kinematics / meshes come from the official ur_description package (macro `ur_robot`).
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="cafe_ur30">
+  <xacro:arg name="base_z" default="0.75"/>
+  <!-- false = Ignition Fortress (ign_ros2_control), true = Gazebo Harmonic (gz_ros2_control) -->
+  <xacro:arg name="use_gz" default="false"/>
+
+  <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro"/>
+  <xacro:include filename="$(find cafe_sim)/urdf/parallel_gripper.xacro"/>
+
+  <link name="world"/>
+
+  <xacro:ur_robot
+      name="ur30"
+      tf_prefix=""
+      parent="world"
+      joint_limits_parameters_file="$(find ur_description)/config/ur30/joint_limits.yaml"
+      kinematics_parameters_file="$(find ur_description)/config/ur30/default_kinematics.yaml"
+      physical_parameters_file="$(find ur_description)/config/ur30/physical_parameters.yaml"
+      visual_parameters_file="$(find ur_description)/config/ur30/visual_parameters.yaml"
+      safety_limits="false">
+    <origin xyz="0 0 $(arg base_z)" rpy="0 0 ${pi}"/>
+  </xacro:ur_robot>
+
+  <xacro:parallel_gripper parent="tool0">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:parallel_gripper>
+
+  <!-- ros2_control: one system with the 6 arm joints + 2 finger joints -->
+  <xacro:macro name="arm_joint" params="jn initial">
+    <joint name="${jn}">
+      <command_interface name="position"/>
+      <state_interface name="position"><param name="initial_value">${initial}</param></state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+  </xacro:macro>
+
+  <ros2_control name="IgnitionSystem" type="system">
+    <hardware>
+      <xacro:if value="$(arg use_gz)"><plugin>gz_ros2_control/GazeboSimSystem</plugin></xacro:if>
+      <xacro:unless value="$(arg use_gz)"><plugin>ign_ros2_control/IgnitionSystem</plugin></xacro:unless>
+    </hardware>
+    <!-- initial pose = "observe" pose (arm swung out of the camera's field of view) -->
+    <xacro:arm_joint jn="shoulder_pan_joint"  initial="${pi/2}"/>
+    <xacro:arm_joint jn="shoulder_lift_joint" initial="${-pi/2}"/>
+    <xacro:arm_joint jn="elbow_joint"         initial="${pi/2}"/>
+    <xacro:arm_joint jn="wrist_1_joint"       initial="${-pi/2}"/>
+    <xacro:arm_joint jn="wrist_2_joint"       initial="${-pi/2}"/>
+    <xacro:arm_joint jn="wrist_3_joint"       initial="0.0"/>
+    <xacro:parallel_gripper_ros2_joints/>
+  </ros2_control>
+
+  <xacro:unless value="$(arg use_gz)">
+    <gazebo>
+      <plugin filename="ign_ros2_control-system" name="ign_ros2_control::IgnitionROS2ControlPlugin">
+        <parameters>$(find cafe_sim)/config/controllers.yaml</parameters>
+      </plugin>
+    </gazebo>
+  </xacro:unless>
+  <xacro:if value="$(arg use_gz)">
+    <gazebo>
+      <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <parameters>$(find cafe_sim)/config/controllers.yaml</parameters>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+</robot>

@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<!--
+  WHOLE APPLICATION:  simulation -> perception -> MoveIt/executor -> task manager (+ RViz)
+
+      ros2 launch cafe_bringup cafe.launch.xml
+      ros2 launch cafe_bringup cafe.launch.xml gui:=false          # headless Gazebo (faster)
+      ros2 launch cafe_bringup cafe.launch.xml autostart:=false    # do not start picking yet
+      ros2 launch cafe_bringup cafe.launch.xml gz:=true            # new Gazebo (Harmonic) instead of Ignition
+
+  Everything starts at once; each node waits for what it needs
+  (sim clock, TF, move_group, controllers), so no start-up delays are required.
+-->
+<launch>
+  <arg name="gui"       default="true" description="Gazebo window"/>
+  <arg name="rviz"      default="true" description="Start RViz"/>
+  <arg name="autostart" default="true" description="Task manager starts picking immediately"/>
+  <arg name="gz"        default="$(env CAFE_GZ false)"
+       description="true = new Gazebo (gz sim), false = Ignition Fortress. Docker 'harmonic' image sets CAFE_GZ=true"/>
+
+  <let name="app_params" value="$(find-pkg-share cafe_bringup)/config/cafe_params.yaml"/>
+
+  <!-- 1. Simulation: Gazebo, robot, controllers, camera, TF -->
+  <include file="$(find-pkg-share cafe_sim)/launch/sim.launch.xml" unless="$(var gz)">
+    <arg name="gui" value="$(var gui)"/>
+  </include>
+  <include file="$(find-pkg-share cafe_sim)/launch/sim_gz.launch.xml" if="$(var gz)">
+    <arg name="gui" value="$(var gui)"/>
+  </include>
+
+  <!-- 2. Perception: camera images -> tray poses in the world frame -->
+  <node pkg="tray_detector" exec="tray_detector_node" name="tray_detector" output="screen">
+    <param from="$(var app_params)"/>
+    <param name="use_sim_time" value="true"/>
+  </node>
+
+  <!-- 3. Manipulation: MoveIt + pick/place executor -->
+  <include file="$(find-pkg-share cafe_bringup)/launch/moveit.launch.xml">
+    <arg name="gz" value="$(var gz)"/>
+  </include>
+
+  <!-- 4. Task level: detect -> prioritise -> pick/place -> retry/skip -->
+  <node pkg="task_manager" exec="task_manager_node" name="task_manager" output="screen">
+    <param from="$(var app_params)"/>
+    <param name="use_sim_time" value="true"/>
+    <param name="autostart" value="$(var autostart)"/>
+  </node>
+
+  <!-- 5. Visualisation -->
+  <node pkg="rviz2" exec="rviz2" output="log" if="$(var rviz)"
+        args="-d $(find-pkg-share cafe_bringup)/rviz/cafe.rviz">
+    <param name="use_sim_time" value="true"/>
+  </node>
+</launch>

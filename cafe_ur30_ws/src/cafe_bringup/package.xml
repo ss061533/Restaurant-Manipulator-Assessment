@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>cafe_bringup</name>
+  <version>1.0.0</version>
+  <description>Launch files, parameters and RViz config for the café vision-guided manipulator</description>
+  <maintainer email="candidate@example.com">Candidate</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>cafe_sim</exec_depend>
+  <exec_depend>cafe_moveit_config</exec_depend>
+  <exec_depend>cafe_interfaces</exec_depend>
+  <exec_depend>tray_detector</exec_depend>
+  <exec_depend>task_manager</exec_depend>
+  <exec_depend>pick_place_executor</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>moveit_ros_move_group</exec_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

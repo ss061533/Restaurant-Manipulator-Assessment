@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<!--
+  SIMULATION with the NEW Gazebo (gz-sim, e.g. Harmonic) - same job as sim.launch.xml (Ignition).
+  Needs: ros_gz_sim, ros_gz_bridge, gz_ros2_control built for your Gazebo version
+  (see Dockerfile, build-arg GZ=harmonic).
+-->
+<launch>
+  <arg name="gui" default="true" description="Show the Gazebo window (false = headless)"/>
+
+  <set_env name="GZ_SIM_RESOURCE_PATH"
+           value="$(find-pkg-prefix ur_description)/share:$(find-pkg-prefix cafe_sim)/share:$(env GZ_SIM_RESOURCE_PATH /opt/ros/humble/share)"/>
+  <set_env name="GZ_SIM_SYSTEM_PLUGIN_PATH"
+           value="$(find-pkg-prefix gz_ros2_control)/lib:$(env LD_LIBRARY_PATH /opt/ros/humble/lib)"/>
+
+  <include file="$(find-pkg-share ros_gz_sim)/launch/gz_sim.launch.py" if="$(var gui)">
+    <arg name="gz_args" value="-r -v 2 $(find-pkg-share cafe_sim)/worlds/cafe_gz.sdf"/>
+    <arg name="on_exit_shutdown" value="true"/>
+  </include>
+  <include file="$(find-pkg-share ros_gz_sim)/launch/gz_sim.launch.py" unless="$(var gui)">
+    <arg name="gz_args" value="-r -s -v 2 $(find-pkg-share cafe_sim)/worlds/cafe_gz.sdf"/>
+    <arg name="on_exit_shutdown" value="true"/>
+  </include>
+
+  <node pkg="robot_state_publisher" exec="robot_state_publisher" output="screen">
+    <param name="robot_description"
+           value="$(command 'xacro $(find-pkg-share cafe_sim)/urdf/cafe_ur30.urdf.xacro use_gz:=true')"
+           type="str"/>
+    <param name="use_sim_time" value="true"/>
+  </node>
+
+  <node pkg="ros_gz_sim" exec="create" output="screen"
+        args="-topic robot_description -name ur30 -allow_renaming true"/>
+
+  <node pkg="ros_gz_bridge" exec="parameter_bridge" output="screen"
+        args="/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock
+              /camera/image@sensor_msgs/msg/Image[gz.msgs.Image
+              /camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image
+              /camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo"/>
+
+  <node pkg="tf2_ros" exec="static_transform_publisher" output="screen"
+        args="--x 0.75 --y 0.0 --z 1.75 --qx 0.7071068 --qy -0.7071068 --qz 0.0 --qw 0.0 --frame-id world --child-frame-id camera_optical_frame">
+    <param name="use_sim_time" value="true"/>
+  </node>
+
+  <node pkg="controller_manager" exec="spawner" output="screen"
+        args="joint_state_broadcaster --controller-manager /controller_manager --controller-manager-timeout 300"/>
+  <node pkg="controller_manager" exec="spawner" output="screen"
+        args="joint_trajectory_controller --controller-manager /controller_manager --controller-manager-timeout 300"/>
+  <node pkg="controller_manager" exec="spawner" output="screen"
+        args="gripper_controller --controller-manager /controller_manager --controller-manager-timeout 300"/>
+</launch>
